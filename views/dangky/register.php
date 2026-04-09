@@ -1,0 +1,418 @@
+<?php
+require_once '../../models/mSession.php';
+
+Session::start();
+
+// Chuyển về trang chủ nếu đã đăng nhập
+if (Session::isLoggedIn()) {
+    header('Location: ../trangchu/index.php');
+    exit;
+}
+
+$errors = Session::get('register_errors', []);
+$formData = Session::get('register_data', []);
+// Xóa errors và data sau khi đã lấy
+Session::delete('register_errors');
+Session::delete('register_data');
+
+// Lấy action và targetUser từ URL nếu có
+$action = $_GET['action'] ?? '';
+$targetUser = $_GET['targetUser'] ?? '';
+
+// Lấy thông báo success nếu có
+$successMessage = Session::getFlash('register_success');
+?>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký tài khoản - Kết Nối Yêu Thương</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../public/css/register.css?v=<?php echo time(); ?>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <a href="../../index.php" class="logo">
+                <img src="../../public/img/logo.jpg" alt="DuyenHub Logo">
+                <span class="logo-text">DuyenHub</span>
+            </a>
+        </div>
+    </header>
+
+    <div class="register-wrapper">
+        <div class="register-container">
+            <button class="back-btn" onclick="goBackAndClearCache()" title="Quay lại">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            
+            <div class="register-header">
+                <h1>Tạo tài khoản mới</h1>
+                <p>Bắt đầu hành trình tìm kiếm tình yêu của bạn</p>
+            
+            <?php if (!empty($successMessage)): ?>
+                <div class="success-container" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 8px; margin: 10px 0; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+                    <span><?php echo htmlspecialchars($successMessage); ?></span>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($action === 'like' && !empty($targetUser)): ?>
+                <div class="info-container" style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                    <i class="fas fa-heart"></i> Đăng ký để thích hồ sơ này
+                </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($errors)): ?>
+                <div class="error-container" style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        <?php foreach ($errors as $error): ?>
+                            <li><?php echo htmlspecialchars($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php
+        // Build form action URL with params
+        $formAction = '../../controller/cRegister.php';
+        $params = [];
+        if ($action === 'like' && !empty($targetUser)) {
+            $params[] = 'action=' . urlencode($action);
+            $params[] = 'targetUser=' . urlencode($targetUser);
+        }
+        if (!empty($params)) {
+            $formAction .= '?' . implode('&', $params);
+        }
+        ?>
+
+        <form action="<?php echo $formAction; ?>" method="POST" id="registerForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="email" 
+                        name="email" 
+                        class="form-control" 
+                        placeholder="Nhập email"
+                        value="<?php echo isset($formData['email']) ? htmlspecialchars($formData['email']) : ''; ?>"
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <span class="error-message">Vui lòng nhập email hợp lệ</span>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Mật khẩu</label>
+                <div class="input-wrapper">
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="form-control" 
+                        placeholder="Nhập mật khẩu"
+                        required
+                    >
+                    <button type="button" class="password-toggle" onclick="togglePassword('password', 'toggleIcon1')">
+                        <i class="fas fa-eye" id="toggleIcon1"></i>
+                    </button>
+                </div>
+                <div class="password-strength" id="passwordStrength">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strengthFill"></div>
+                    </div>
+                    <span class="strength-text" id="strengthText"></span>
+                </div>
+                <span class="error-message">Mật khẩu phải có ít nhất 6 ký tự</span>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">Xác nhận mật khẩu</label>
+                <div class="input-wrapper">
+                    <input 
+                        type="password" 
+                        id="confirm_password" 
+                        name="confirm_password" 
+                        class="form-control" 
+                        placeholder="Nhập lại mật khẩu"
+                        required
+                    >
+                    <button type="button" class="password-toggle" onclick="togglePassword('confirm_password', 'toggleIcon2')">
+                        <i class="fas fa-eye" id="toggleIcon2"></i>
+                    </button>
+                </div>
+                <span class="error-message">Mật khẩu xác nhận không khớp</span>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    <input 
+                        type="checkbox" 
+                        id="accept_terms" 
+                        name="accept_terms" 
+                        required
+                    >
+                    <span class="checkmark"></span>
+                    <span class="checkbox-text">
+                        Tôi đồng ý với 
+                        <a href="#" target="_blank">Điều khoản dịch vụ</a> và 
+                        <a href="#" target="_blank">Chính sách bảo mật</a>
+                    </span>
+                </label>
+                <span class="error-message">Bạn phải chấp nhận điều khoản để tiếp tục</span>
+            </div>
+
+            <button type="submit" class="btn-register">
+                Đăng ký
+            </button>
+        </form>
+
+        <?php
+        // Build login link with params
+        $loginLink = '../dangnhap/login.php';
+        $loginParams = [];
+        if ($action === 'like' && !empty($targetUser)) {
+            $loginParams[] = 'action=' . urlencode($action);
+            $loginParams[] = 'targetUser=' . urlencode($targetUser);
+        }
+        if (!empty($loginParams)) {
+            $loginLink .= '?' . implode('&', $loginParams);
+        }
+        ?>
+
+            <div class="login-link">
+                Đã có tài khoản? <a href="<?php echo $loginLink; ?>">Đăng nhập ngay</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+          // Lưu referrer vào localStorage khi lần đầu vào trang
+        (function() {
+            if (!localStorage.getItem('register_referrer')) {
+                // Không lưu nếu referrer là chính trang đăng ký
+                if (document.referrer && !window.location.href.includes(document.referrer)) {
+                    localStorage.setItem('register_referrer', document.referrer);
+                }
+            }
+        })();
+
+        // Go back and clear cache
+        function goBackAndClearCache() {
+            // Clear cache by reloading without cache
+            // Ưu tiên referrer đã lưu trong localStorage
+            const savedRef = localStorage.getItem('register_referrer');
+            if (savedRef) {
+                localStorage.removeItem('register_referrer');
+                window.location.href = savedRef;
+                return;
+            }
+            // Nếu không có thì fallback như cũ
+            if (window.history.length > 1) {
+                window.location.href = document.referrer || '../../index.php';
+            } else {
+                window.location.href = '../../index.php';
+            }
+        }
+
+        // Toggle password visibility
+        function togglePassword(inputId, iconId) {
+            const passwordInput = document.getElementById(inputId);
+            const toggleIcon = document.getElementById(iconId);
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        // Password strength checker
+        const passwordInput = document.getElementById('password');
+        const strengthContainer = document.getElementById('passwordStrength');
+        const strengthFill = document.getElementById('strengthFill');
+        const strengthText = document.getElementById('strengthText');
+
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            
+            if (password.length === 0) {
+                strengthContainer.classList.remove('active');
+                return;
+            }
+            
+            strengthContainer.classList.add('active');
+            
+            let strength = 0;
+            if (password.length >= 6) strength++;
+            if (password.length >= 10) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[^a-zA-Z\d]/.test(password)) strength++;
+            
+            strengthFill.className = 'strength-fill';
+            
+            if (strength <= 2) {
+                strengthFill.classList.add('weak');
+                strengthText.textContent = 'Mật khẩu yếu';
+                strengthText.style.color = '#dc3545';
+            } else if (strength <= 4) {
+                strengthFill.classList.add('medium');
+                strengthText.textContent = 'Mật khẩu trung bình';
+                strengthText.style.color = '#ffc107';
+            } else {
+                strengthFill.classList.add('strong');
+                strengthText.textContent = 'Mật khẩu mạnh';
+                strengthText.style.color = '#28a745';
+            }
+        });
+
+        // Form validation
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            // Remove all error states
+            document.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('error');
+            });
+            
+            let isValid = true;
+            let errorMessages = [];
+            
+            // Validate email
+            const email = document.getElementById('email').value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            if (!emailRegex.test(email)) {
+                document.getElementById('email').closest('.form-group').classList.add('error');
+                errorMessages.push('Email không hợp lệ');
+                isValid = false;
+            }
+            
+            // Validate password
+            const password = document.getElementById('password').value;
+            if (password.length < 6) {
+                document.getElementById('password').closest('.form-group').classList.add('error');
+                errorMessages.push('Mật khẩu phải có ít nhất 6 ký tự');
+                isValid = false;
+            }
+            
+            // Validate confirm password
+            const confirmPassword = document.getElementById('confirm_password').value;
+            if (password !== confirmPassword) {
+                document.getElementById('confirm_password').closest('.form-group').classList.add('error');
+                errorMessages.push('Mật khẩu xác nhận không khớp');
+                isValid = false;
+            }
+            
+            // Validate terms acceptance - QUAN TRỌNG
+            const acceptTerms = document.getElementById('accept_terms');
+            if (!acceptTerms.checked) {
+                acceptTerms.closest('.form-group').classList.add('error');
+                isValid = false;
+                // Hiển thị thông báo nổi bật
+                e.preventDefault();
+                showNotification('Bạn phải đồng ý với Điều khoản dịch vụ và Chính sách bảo mật để đăng ký!', 'error');
+                // Scroll đến checkbox
+                acceptTerms.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                if (errorMessages.length > 0 && !acceptTerms.checked) {
+                    // Nếu có nhiều lỗi, hiển thị lỗi đầu tiên
+                    showNotification(errorMessages[0], 'error');
+                }
+            }
+            // Form sẽ được submit tự động nếu isValid = true
+        });
+
+        // Thêm validation realtime cho checkbox
+        document.getElementById('accept_terms').addEventListener('change', function() {
+            const formGroup = this.closest('.form-group');
+            if (this.checked) {
+                formGroup.classList.remove('error');
+            }
+        });
+
+        // Hàm hiển thị thông báo
+        function showNotification(message, type) {
+            // Xóa notification cũ nếu có
+            const oldNotif = document.querySelector('.custom-notification');
+            if (oldNotif) oldNotif.remove();
+            
+            const notification = document.createElement('div');
+            notification.className = 'custom-notification';
+            
+            let icon = '';
+            let color = '';
+            
+            if (type === 'success') {
+                icon = '<i class="fas fa-check-circle"></i>';
+                color = '#28a745';
+            } else if (type === 'error') {
+                icon = '<i class="fas fa-exclamation-circle"></i>';
+                color = '#dc3545';
+            } else if (type === 'info') {
+                icon = '<i class="fas fa-info-circle"></i>';
+                color = '#17a2b8';
+            }
+            
+            notification.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    padding: 30px 50px;
+                    border-radius: 15px;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                    z-index: 10000;
+                    text-align: center;
+                    max-width: 90%;
+                    width: 400px;
+                ">
+                    <div style="font-size: 48px; color: ${color}; margin-bottom: 15px;">${icon}</div>
+                    <h3 style="margin: 0 0 20px 0; color: #2C3E50; font-size: 18px;">${message}</h3>
+                    <button onclick="this.closest('.custom-notification').remove()" style="
+                        padding: 10px 30px;
+                        background: ${color};
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                        Đóng
+                    </button>
+                </div>
+                <div onclick="this.parentElement.remove()" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                    cursor: pointer;
+                "></div>
+            `;
+            document.body.appendChild(notification);
+        }
+    </script>
+</body>
+</html>
